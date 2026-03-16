@@ -9,7 +9,7 @@ A full-featured Streamlit web app that fetches, stores, and visualizes YouTube c
 
 | Module | What it does |
 |---|---|
-| **📥 Fetch Channel** | Pull channel info + all video stats via YouTube API, store to SQLite |
+| **📥 Fetch Channel** | Pull channel info + all video stats via YouTube API, store to MySQL |
 | **📊 Channel Analytics** | Trends, top videos, engagement charts, posting habits — date-filtered |
 | **🔍 Video Explorer** | Search, sort, filter videos + CSV download |
 | **⚖️ Compare Channels** | Side-by-side KPI table, overlay trend chart, box plot, radar chart |
