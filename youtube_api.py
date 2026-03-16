@@ -1,103 +1,92 @@
 from googleapiclient.discovery import build
 
-API_KEY = "AIzaSyA7Dg-4bG1UuFG2S-6_Y4RXpTrt6JoDd64"   # Replace with new key
+# ⚠️  Replace with your valid YouTube Data API v3 key
+API_KEY = "YOUR_YOUTUBE_API_KEY"
 
 youtube = build("youtube", "v3", developerKey=API_KEY)
 
 
-# ----------------------------------------------------
-# Get Channel Details (Safe Version)
-# ----------------------------------------------------
-def get_channel_details(channel_id):
+def get_channel_details(channel_id: str) -> dict | None:
+    """Return channel-level stats or None on failure."""
     try:
-        request = youtube.channels().list(
+        response = youtube.channels().list(
             part="snippet,statistics",
             id=channel_id
-        )
-        response = request.execute()
+        ).execute()
 
-        print("API RESPONSE:", response)
-
-        if "items" in response and len(response["items"]) > 0:
-            data = response["items"][0]
-            return {
-                "channel_name": data["snippet"]["title"],
-                "subscribers": data["statistics"].get("subscriberCount", 0),
-                "total_views": data["statistics"].get("viewCount", 0),
-                "total_videos": data["statistics"].get("videoCount", 0)
-            }
-        else:
+        items = response.get("items", [])
+        if not items:
             return None
 
+        data = items[0]
+        stats = data["statistics"]
+        return {
+            "channel_name": data["snippet"]["title"],
+            "subscribers":  stats.get("subscriberCount", 0),
+            "total_views":  stats.get("viewCount", 0),
+            "total_videos": stats.get("videoCount", 0),
+        }
     except Exception as e:
-        print("ERROR:", e)
+        print(f"[channel_details] ERROR: {e}")
         return None
 
-# ----------------------------------------------------
-# Get Video Details (Safe Version)
-# ----------------------------------------------------
-def get_video_details(channel_id):
+
+def get_video_details(channel_id: str) -> list[dict] | None:
+    """Return a list of video dicts for the channel, or None on failure."""
     try:
-        # Step 1: Get Upload Playlist ID
-        request = youtube.channels().list(
+        # 1. Get the uploads playlist ID
+        response = youtube.channels().list(
             part="contentDetails",
             id=channel_id
-        )
-        response = request.execute()
+        ).execute()
 
-        if "items" not in response or len(response["items"]) == 0:
+        items = response.get("items", [])
+        if not items:
             return None
 
-        uploads_playlist_id = response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        uploads_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
-        # Step 2: Get Video IDs
+        # 2. Paginate through the playlist to collect all video IDs
         video_ids = []
         next_page_token = None
-
         while True:
-            request = youtube.playlistItems().list(
+            pl_response = youtube.playlistItems().list(
                 part="snippet",
-                playlistId=uploads_playlist_id,
+                playlistId=uploads_id,
                 maxResults=50,
                 pageToken=next_page_token
-            )
-            response = request.execute()
+            ).execute()
 
-            if "items" not in response:
-                break
-
-            for item in response["items"]:
+            for item in pl_response.get("items", []):
                 video_ids.append(item["snippet"]["resourceId"]["videoId"])
 
-            next_page_token = response.get("nextPageToken")
+            next_page_token = pl_response.get("nextPageToken")
             if not next_page_token:
                 break
 
-        # Step 3: Get Video Statistics
+        # 3. Fetch stats in batches of 50
         video_data = []
-
         for i in range(0, len(video_ids), 50):
-            request = youtube.videos().list(
+            batch = ",".join(video_ids[i:i + 50])
+            v_response = youtube.videos().list(
                 part="snippet,statistics",
-                id=",".join(video_ids[i:i+50])
-            )
-            response = request.execute()
+                id=batch
+            ).execute()
 
-            if "items" not in response:
-                continue
-
-            for item in response["items"]:
+            for item in v_response.get("items", []):
+                snippet = item["snippet"]
+                stats   = item["statistics"]
                 video_data.append({
-                    "video_id": item["id"],
-                    "title": item["snippet"]["title"],
-                    "views": item["statistics"].get("viewCount", 0),
-                    "likes": item["statistics"].get("likeCount", 0),
-                    "comments": item["statistics"].get("commentCount", 0),
-                    "published_date": item["snippet"]["publishedAt"][:10]
+                    "video_id":      item["id"],
+                    "title":         snippet["title"],
+                    "views":         stats.get("viewCount",   0),
+                    "likes":         stats.get("likeCount",   0),
+                    "comments":      stats.get("commentCount", 0),
+                    "published_date": snippet["publishedAt"][:10],
                 })
 
-        return video_data
+        return video_data if video_data else None
 
     except Exception as e:
-        print("Video API Error:", e)
+        print(f"[video_details] ERROR: {e}")
         return None
